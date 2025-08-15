@@ -1,91 +1,71 @@
 /// <reference path="./.config/sa.d.ts" />
 import { GangType, ImGuiCol, ImGuiStyleVar } from "./.config/enums";
 
+// ===== Constants =====
 const TOGGLE_KEY = 115; // F4
-var gShowWindow = 0;
-let p = new Player(0);
-let playerchar = p.getChar();
-let x, y, z;
-let GangWar;
-let GangMode;
-// Territory variables
-var zone_name = "Unknown";
+const gangNames = ["Ballas", "Grove", "Vagos", "Rifa", "Da Nang Boys", "Mafia", "Triad", "Aztecas"];
+const weaponNames = [
+  "Unarmed",
+  "Brass Knuckles",
+  "Golf Club",
+  "Night Stick",
+  "Knife",
+  "Baseball Bat",
+  "Shovel",
+  "Pool Cue",
+  "Katana",
+  "Chainsaw",
+  "Pistol",
+  "Silenced Pistol",
+  "Desert Eagle",
+  "Shotgun",
+  "Sawn-off Shotgun",
+  "Combat Shotgun",
+  "Micro Uzi",
+  "MP5",
+  "AK-47",
+  "M4",
+  "Tec-9",
+  "Rifle",
+  "Sniper Rifle",
+];
+const weaponIds = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34];
+
+// ===== Variables =====
+var gShowWindow = false;
+var player = new Player(0);
+var playerChar = player.getChar();
+var x, y, z;
+var GangWar = false;
+var GangMode = false;
+
+// Territory
+var zoneName = "Unknown";
 var gGSFDensity = 0;
 var gBallasDensity = 0;
 var gVagosDensity = 0;
 var gZoneLoaded = false;
+
+// Weapon selection
 var selectedGang = 0;
+var selectedWeapons = [0, 0, 0]; // slots 1,2,3
 
-const gangNames = ["Ballas", "Grove", "Vagos", "Rifa", "Da Nang Boys", "Mafia", "Triad", "Aztecas"];
-let selectedWeapon1 = 0;
-let selectedWeapon2 = 0;
-let selectedWeapon3 = 0;
-const weaponNames = [
-  "Unarmed",          // 0
-  "Brass Knuckles",   // 1
-  "Golf Club",        // 2
-  "Night Stick",      // 3
-  "Knife",            // 4
-  "Baseball Bat",     // 5
-  "Shovel",           // 6
-  "Pool Cue",         // 7
-  "Katana",           // 8
-  "Chainsaw",         // 9
-  "Pistol",           // 22
-  "Silenced Pistol",  // 23
-  "Desert Eagle",     // 24
-  "Shotgun",          // 25
-  "Sawn-off Shotgun", // 26
-  "Combat Shotgun",   // 27
-  "Micro Uzi",        // 28
-  "MP5",              // 29
-  "AK-47",            // 30
-  "M4",               // 31
-  "Tec-9",            // 32
-  "Rifle",            // 33
-  "Sniper Rifle"      // 34
-];
-
-const weaponIds = [
-  0,  // Unarmed
-  1,  // BrassKnuckles
-  2,  // GolfClub
-  3,  // NightStick
-  4,  // Knife
-  5,  // BaseballBat
-  6,  // Shovel
-  7,  // PoolCue
-  8,  // Katana
-  9,  // Chainsaw
-  22, // Pistol
-  23, // PistolSilenced
-  24, // DesertEagle
-  25, // Shotgun
-  26, // Sawnoff
-  27, // Spas12
-  28, // MicroUzi
-  29, // Mp5
-  30, // Ak47
-  31, // M4
-  32, // Tec9
-  33, // Rifle
-  34  // Sniper
-];
-
+// ===== Utility Functions =====
 function getCurrentZoneData() {
-  let coords = playerchar.getCoordinates();
+  var coords = playerChar.getCoordinates();
   x = coords.x;
   y = coords.y;
   z = coords.z;
-  zone_name = Zone.GetName(x, y, z);
 
-  gGSFDensity = Zone.GetGangStrength(zone_name, GangType.Grove);
-  gBallasDensity = Zone.GetGangStrength(zone_name, GangType.Ballas);
-  gVagosDensity = Zone.GetGangStrength(zone_name, GangType.Vagos);
+  zoneName = Zone.GetName(x, y, z);
+  gGSFDensity = Zone.GetGangStrength(zoneName, GangType.Grove);
+  gBallasDensity = Zone.GetGangStrength(zoneName, GangType.Ballas);
+  gVagosDensity = Zone.GetGangStrength(zoneName, GangType.Vagos);
+
   gZoneLoaded = true;
 }
 
-function textBox(text) {
+function showMessage(text) {
   if (["gta3", "vc", "sa", "gta3_unreal", "vc_unreal", "sa_unreal"].includes(HOST)) {
     showTextBox(text);
   } else {
@@ -93,84 +73,51 @@ function textBox(text) {
   }
 }
 
-while (true) {
-  wait(0);
+// ===== ImGui Helpers =====
+function drawTerritoryTab() {
+  ImGui.Spacing();
+  ImGui.Text("Territory Management");
+  ImGui.Separator();
 
-  ImGui.BeginFrame("IMGUI_TERRITORY_WEAPONS_SETTINGS");
-  ImGui.SetCursorVisible(gShowWindow);
+  if (ImGui.Button("Get Current Zone")) {
+    getCurrentZoneData();
+    showMessage("Loaded zone: " + zoneName);
+  }
 
-  if (gShowWindow) {
-    ImGui.SetNextWindowSize(350.0, 400.0, 2);
-    gShowWindow = ImGui.Begin("Gang Selector", gShowWindow, 0, 0, 0, 0);
+  if (!gZoneLoaded) return;
 
-    ImGui.BeginChild("MainChild");
+  ImGui.Spacing();
+  ImGui.Text("Zone: " + zoneName);
+  gGSFDensity = ImGui.SliderInt("GSF Density", gGSFDensity, 0, 100);
+  gBallasDensity = ImGui.SliderInt("Ballas Density", gBallasDensity, 0, 100);
+  gVagosDensity = ImGui.SliderInt("Vagos Density", gVagosDensity, 0, 100);
 
-    let tab = ImGui.Tabs("TabBar", "Territory,Weapons,Settings");
+  if (ImGui.Button("Apply Changes")) {
+    Zone.SetGangStrength(zoneName, GangType.Grove, gGSFDensity);
+    Zone.SetGangStrength(zoneName, GangType.Ballas, gBallasDensity);
+    Zone.SetGangStrength(zoneName, GangType.Vagos, gVagosDensity);
 
-    // ===== Territory Tab =====
-    if (tab == 0) {
-      ImGui.Spacing();
-      ImGui.Text("Territory Management");
-      ImGui.Separator();
+    Game.SetOnMission(true);
+    wait(10);
+    Game.SetOnMission(false);
 
-      if (ImGui.Button("Get Current Zone")) {
-        getCurrentZoneData();
-        textBox("Loaded zone: " + zone_name);
-      }
+    showMessage("Densities updated for " + zoneName);
+  }
+}
 
-      if (gZoneLoaded) {
-        ImGui.Spacing();
-        ImGui.Text("Zone: " + zone_name);
-
-        gGSFDensity = ImGui.SliderInt("GSF Density", gGSFDensity, 0, 100);
-        gBallasDensity = ImGui.SliderInt("Ballas Density", gBallasDensity, 0, 100);
-        gVagosDensity = ImGui.SliderInt("Vagos Density", gVagosDensity, 0, 100);
-
-        if (ImGui.Button("Apply Changes")) {
-          Zone.SetGangStrength(zone_name, GangType.Grove, gGSFDensity);
-          Zone.SetGangStrength(zone_name, GangType.Ballas, gBallasDensity);
-          Zone.SetGangStrength(zone_name, GangType.Vagos, gVagosDensity);
-          Game.SetOnMission(true);
-          wait(10);
-          Game.SetOnMission(false);
-          textBox("Densities updated for " + zone_name);
-        }
-      }
-    }
-
-    // ===== Weapons Tab =====
-if (tab == 1) {
+function drawWeaponsTab() {
   ImGui.Spacing();
   ImGui.Text("Gang Selection");
   ImGui.Separator();
 
-  selectedGang = ImGui.ComboBox(
-    "Select Gang",
-    gangNames.join(","),
-    selectedGang
-  );
-
-  ImGui.Spacing();
+  selectedGang = ImGui.ComboBox("Select Gang", gangNames.join(","), selectedGang);
   ImGui.Text("Selected Gang: " + gangNames[selectedGang]);
-
   ImGui.Separator();
-  ImGui.Text("Gang Weapon Spawn Setup");
 
-  selectedWeapon1 = ImGui.ComboBox(
-    "Weapon Slot 1",
-    weaponNames.join(","),
-    selectedWeapon1
-  );
-  selectedWeapon2 = ImGui.ComboBox(
-    "Weapon Slot 2",
-    weaponNames.join(","),
-    selectedWeapon2
-  );
-  selectedWeapon3 = ImGui.ComboBox(
-    "Weapon Slot 3",
-    weaponNames.join(","),
-    selectedWeapon3
-  );
+  ImGui.Text("Gang Weapon Spawn Setup");
+  selectedWeapons[0] = ImGui.ComboBox("Weapon Slot 1", weaponNames.join(","), selectedWeapons[0]);
+  selectedWeapons[1] = ImGui.ComboBox("Weapon Slot 2", weaponNames.join(","), selectedWeapons[1]);
+  selectedWeapons[2] = ImGui.ComboBox("Weapon Slot 3", weaponNames.join(","), selectedWeapons[2]);
 
   ImGui.Spacing();
   ImGui.Separator();
@@ -178,39 +125,52 @@ if (tab == 1) {
 
   if (ImGui.Button("Apply Selection")) {
     Gang.SetWeapons(
-      selectedGang,                           // gang ID
-      weaponIds[selectedWeapon1],             // slot 1 weapon type
-      weaponIds[selectedWeapon2],             // slot 2 weapon type
-      weaponIds[selectedWeapon3]              // slot 3 weapon type
+      selectedGang,
+      weaponIds[selectedWeapons[0]],
+      weaponIds[selectedWeapons[1]],
+      weaponIds[selectedWeapons[2]]
     );
-
-    textBox(
-      "Gang: " + gangNames[selectedGang] +
-      " weapons set to: " +
-      weaponNames[selectedWeapon1] + ", " +
-      weaponNames[selectedWeapon2] + ", " +
-      weaponNames[selectedWeapon3]
+    showMessage(
+      "Gang: " +
+        gangNames[selectedGang] +
+        " weapons set to: " +
+        weaponNames[selectedWeapons[0]] +
+        ", " +
+        weaponNames[selectedWeapons[1]] +
+        ", " +
+        weaponNames[selectedWeapons[2]]
     );
   }
 }
-    // ===== Settings Tab =====
-    if (tab == 2) {
-      ImGui.Spacing();
-      ImGui.Text("Settings");
-      ImGui.Separator();
-      GangWar = ImGui.Checkbox("Gang Wars", GangWar);
-      if (GangWar) {
-        Game.SetGangWarsActive(true);
-      } else {
-        Game.SetGangWarsActive(false);
-      }
-      GangMode = ImGui.Checkbox("Gang Mode", GangMode);
-      if (GangMode) {
-        Game.SetOnlyCreateGangMembers(true);
-      } else {
-        Game.SetOnlyCreateGangMembers(false);
-      }
-    }
+
+function drawSettingsTab() {
+  ImGui.Spacing();
+  ImGui.Text("Settings");
+  ImGui.Separator();
+
+  GangWar = ImGui.Checkbox("Gang Wars", GangWar);
+  Game.SetGangWarsActive(GangWar);
+
+  GangMode = ImGui.Checkbox("Gang Mode", GangMode);
+  Game.SetOnlyCreateGangMembers(GangMode);
+}
+
+// ===== Main Loop =====
+while (true) {
+  wait(0);
+  ImGui.BeginFrame("IMGUI_TERRITORY_WEAPONS_SETTINGS");
+  ImGui.SetCursorVisible(gShowWindow);
+
+  if (gShowWindow) {
+    ImGui.SetNextWindowSize(350, 400, 2);
+    gShowWindow = ImGui.Begin("Gang Selector", gShowWindow, 0, 0, 0, 0);
+
+    ImGui.BeginChild("MainChild");
+    var tab = ImGui.Tabs("TabBar", "Territory,Weapons,Settings");
+
+    if (tab === 0) drawTerritoryTab();
+    else if (tab === 1) drawWeaponsTab();
+    else if (tab === 2) drawSettingsTab();
 
     ImGui.EndChild();
     ImGui.End();
@@ -218,7 +178,5 @@ if (tab == 1) {
 
   ImGui.EndFrame();
 
-  if (Pad.IsKeyDown(TOGGLE_KEY)) {
-    gShowWindow = !gShowWindow;
-  }
+  if (Pad.IsKeyDown(TOGGLE_KEY)) gShowWindow = !gShowWindow;
 }
